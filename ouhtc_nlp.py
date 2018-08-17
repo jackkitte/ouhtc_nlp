@@ -7,7 +7,7 @@ import heapq
 import MeCab
 from gensim.corpora import Dictionary
 from gensim.models import TfidfModel, LsiModel
-from gensim.matutils import corpus2dense
+from gensim.matutils import corpus2dense, Dense2Corpus
 from sklearn.cluster import KMeans
 from wordcloud import WordCloud
 import matplotlib as mpl
@@ -109,34 +109,46 @@ with open("./data/20180101_0815/lsi_dense.dump", "wb") as f:
 kmeans = KMeans(n_clusters=10, random_state=0).fit(lsi_dense)
 labels = kmeans.labels_
 labels_corpus = {}
-for label, lsi in zip(labels, lsi_corpus):
+for label, lsi in zip(labels, lsi_dense):
     if label not in labels_corpus.keys():
-        labels_corpus[label] = {}
-    lsi_abs = [(x, abs(y)) for x, y in lsi]
-    for id_, value in heapq.nlargest(4, lsi_abs, key=lambda x: x[1]):
-        if id_ not in labels_corpus[label].keys():
-            labels_corpus[label][id_] = 1
-        else:
-            labels_corpus[label][id_] += 1
+        labels_corpus[label] = []
+    labels_corpus[label].append(lsi)
 
 labels_topics = {}
-for label, topic_freq in labels_corpus.items():
-    if label not in labels_topics.keys():
-        labels_topics[label] = {}
-    for id_, _ in heapq.nlargest(4, topic_freq.items(), key=lambda x: x[1]):
-        for word, val in lsi_model.show_topic(id_, topn=100):
-            if word not in labels_topics[label].keys():
-                labels_topics[label][word] = abs(val)
-            else:
-                max_val = max(labels_topics[label][word], abs(val))
-                labels_topics[label][word] = abs(max_val)
+for label, topic_vectors in labels_corpus.items():
+    topic_ave_vec = np.average(topic_vectors, axis=0)
+    topic_with_id = [(id_, val) for id_, val in enumerate(topic_ave_vec)]
+    labels_topics[label] = topic_with_id
 
 with open("./data/20180101_0815/labels_corpus.dump", "wb") as f:
     pickle.dump(labels_corpus, f)
 with open("./data/20180101_0815/labels_topics.dump", "wb") as f:
     pickle.dump(labels_topics, f)
 
+labels_topic_vec = {}
+for label, many_topic in labels_topics.items():
+    if label not in labels_topic_vec.keys():
+        labels_topic_vec[label] = []
+    topic_vec_list = []
+    for topic_id, weight in many_topic:
+        w_vector = lsi_model.get_topics()[topic_id] * weight
+        topic_vec_list.append(w_vector)
+    labels_topic_vec[label] = np.average(topic_vec_list, axis=0)
+
+with open("./data/20180101_0815/labels_topic_vec.dump", "wb") as f:
+    pickle.dump(labels_topic_vec, f)
+
+labels_words_freq = {}
+for label, vec in labels_topic_vec.items():
+    if label not in labels_words_freq.keys():
+        labels_words_freq[label] = {}
+    for id_, val in enumerate(vec):
+        labels_words_freq[label][dict_2d[id_]] = abs(val)
+
+with open("./data/20180101_0815/labels_words_freq.dump", "wb") as f:
+    pickle.dump(labels_words_freq, f)
+
 font_path="/temp/IPAexfont00301/ipaexg.ttf"
-for label, corpus in labels_topics.items():
+for label, corpus in labels_words_freq.items():
     wordcloud = WordCloud(background_color="white", font_path=font_path, width=900, height=500).generate_from_frequencies(corpus)
-    wordcloud.to_file("./images/20180101_0815/wordcloud_lsi_freq_label{}.png".format(label))
+    wordcloud.to_file("./images/20180101_0815/wordcloud_lsi_freq_label{}_all_weighting.png".format(label))
