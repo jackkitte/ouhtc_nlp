@@ -109,9 +109,12 @@ with open("./data/20180101_0815/lsi_dense.dump", "wb") as f:
 kmeans = KMeans(n_clusters=10, random_state=0).fit(lsi_dense)
 labels = kmeans.labels_
 labels_corpus = {}
-for label, lsi in zip(labels, lsi_dense):
+labels_ids = {}
+for label, customer_dict, lsi in zip(labels, only_customer_list, lsi_dense):
     if label not in labels_corpus.keys():
         labels_corpus[label] = []
+        labels_ids[label] = []
+    labels_ids[label].append(customer_dict["id"])
     labels_corpus[label].append(lsi)
 
 labels_topics = {}
@@ -120,6 +123,8 @@ for label, topic_vectors in labels_corpus.items():
     topic_with_id = [(id_, val) for id_, val in enumerate(topic_ave_vec)]
     labels_topics[label] = topic_with_id
 
+with open("./data/20180101_0815/labels_ids.dump", "wb") as f:
+    pickle.dump(labels_ids, f)
 with open("./data/20180101_0815/labels_corpus.dump", "wb") as f:
     pickle.dump(labels_corpus, f)
 with open("./data/20180101_0815/labels_topics.dump", "wb") as f:
